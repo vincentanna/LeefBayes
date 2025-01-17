@@ -9,15 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+Personal Access Token for LeefBayes: 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
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
-
-#Personal Access Token for LeefBayes: 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
+```{r Set working directory and load packages, message=FALSE}
 
 rm(list=ls())
 setwd("/Users/annavincent/Documents/Bayesian Collab/LeefBayes")
@@ -41,12 +35,63 @@ library(ungeviz)
 
 ```
 
-## Including Plots
+## The Original Model
+Vincent et al. (2025), JGR: Biogeosciences (DOI: 10.1029/2024JG008259)
 
-You can also embed plots, for example:
+### Summer long survey
+For this part we take the mean of the the 4 stream types (labelled in "fakeleef" dataset as S1-S4) in a 3-level (hierarchical) model. Error enters at 1) the within-release level, 2) the among-release level for any one stream (i.e. variation in removal rate $k$), and 3) the variation among the 4 streams... Put simply, error enters the dataset/model at 3 different levels: 1) within a given release, 2) within releases for a given stream, and 3) across streams.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+The first level is
+ 
+$$A_{i,j} = A_0 \times e^{-k_j x} + \varepsilon_A$$
+$$\varepsilon_A \sim N(0,\sigma_A)$$
+This model estimates $k_j$, which is the per m decline in NH4 ($A$) as a function of distance ($x$) and is specific for a release. In this equation, $A_{i,j}$ represents the [NH4] at a given station ($i$) during a given release ($j$). It is based on [NH4] at the top station ($A_0$; which we used to normalize the release data for subsequent stations). We assume an exponential decline ($e$) and normally distributed errors (equation for $\varepsilon_A$).
+
+We use $k$ estimates to calculate uptake velocity $V_f$
+
+The next level estimates variation in $V_{fj}$ within individual streams.
+
+$$V_{f,j,s}= V_{f,s} + b \times biofilm + c \times shade + d \times biofilm*shade + \varepsilon_v$$
+We are interested in uptake patterns across 4 biofilm periods (shaded; unshaded: early biofilm; unshaded: late biofilm; reshaded). In our experiment, dates 1 & 4 (7/1/20, 8/15/20) were shaded and reshaded, respectively; dates 2 & 3 were early and late biofilm, respectively.
+
+$$ \varepsilon_v \sim N(0,\sigma_v)$$
+Lastly we model the among stream variation in $V_{fs}$ as
+$$V_{f,s}= V_{f, mean} + \varepsilon_s$$
+$$ \varepsilon_s \sim N(0,\sigma_s)$$
+
+
+## Generating a fake dataset
+
+```{r Creation of fake dataset}
+
+Q <- 0.001*86400  #m3/d --> 1 L is 0.001 m3; multiply by 86400 to get from seconds (L/s) to days (m3/d)
+w <- 0.5 #stream width (m)
+
+n_stream <- 4
+n_release <- 12
+
+#start at the top, work down
+meanvf <- log(3) #m/d
+sdvf <- 0.1 # stream to stream differences in vf; parameter, not an error.  Note that log std is very different than sd.  It is like fraction error, and scale independent
+vfstream <- rnorm(n_stream,meanvf,sdvf)
+
+sd_release <- 0.2 ##much smaller for logs.  This says "10% error"
+vf <- rep(vfstream, each=12) + rnorm(n_stream*n_release, 0, sd_release) #now make vf for each release
+
+##now make ammonium uptake
+
+k <- exp(vf)*w/Q
+
+amm_sd <- 0.05 # wow am I good at measuring NH4
+stations <- rep(c(10,20,30,40,50), n_stream*n_release)
+krep <- rep(k, each=3)
+amm_corr <- exp(-krep*stations) + rnorm (length(stations),0, amm_sd) #simulated [NH4] at each station
+
+##now make fake dataframe
+
+fakedat <- data.frame( amm_corr=amm_corr, q=Q, stations=stations, stream=rep(1:4, each=48), release=rep(rep(1:12, each=12), 4), group=rep(1:48, each=12))
+
+summary(fakedat)
+print(krep)
+
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
