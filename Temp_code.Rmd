@@ -17,6 +17,8 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r}
 
+#Personal Access Token for LeefBayes: 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
+
 rm(list=ls())
 setwd("/Users/annavincent/Documents/Bayesian Collab/LeefBayes")
 getwd()
