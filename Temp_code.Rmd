@@ -1,7 +1,7 @@
 ---
 title: "Temporary File for Two-box Bayesian Model"
 author: "Anna Vincent"
-date: "2025-01-17"
+date: "2025-01-21"
 output: html_document
 ---
 
@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Personal Access Token for LeefBayes: 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
+Personal Access Token for LeefBayes: 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
 
 ```{r Set working directory and load packages, message=FALSE}
 
@@ -38,21 +38,22 @@ library(ungeviz)
 ## The Original Model
 Vincent et al. (2025), JGR: Biogeosciences (DOI: 10.1029/2024JG008259)
 
-### Summer long survey
-For this part we take the mean of the the 4 stream types (labelled in "fakeleef" dataset as S1-S4) in a 3-level (hierarchical) model. Error enters at 1) the within-release level, 2) the among-release level for any one stream (i.e. variation in removal rate $k$), and 3) the variation among the 4 streams... Put simply, error enters the dataset/model at 3 different levels: 1) within a given release, 2) within releases for a given stream, and 3) across streams.
+We took the mean of the the 4 stream types (labelled as 1-4) in a 3-level (hierarchical) model. Error enters at 1) the within-release level, 2) the among-release level for any one stream (i.e. variation in removal rate $k$), and 3) the variation among the 4 streams... Put simply, error enters the dataset/model at 3 different levels: 1) within a given release, 2) within releases for a given stream, and 3) across streams.
 
-The first level is
+The first level was
  
 $$A_{i,j} = A_0 \times e^{-k_j x} + \varepsilon_A$$
 $$\varepsilon_A \sim N(0,\sigma_A)$$
-This model estimates $k_j$, which is the per m decline in NH4 ($A$) as a function of distance ($x$) and is specific for a release. In this equation, $A_{i,j}$ represents the [NH4] at a given station ($i$) during a given release ($j$). It is based on [NH4] at the top station ($A_0$; which we used to normalize the release data for subsequent stations). We assume an exponential decline ($e$) and normally distributed errors (equation for $\varepsilon_A$).
+$$N_{i,j} = N_0 \times e^{-k_j x} + \varepsilon_N$$
+$$\varepsilon_N \sim N(0,\sigma_N)$$
+This model estimated $k_j$, which is the per m decline in either NH4 ($A$) or NO3 ($N$) as a function of distance ($x$) and is specific for a release ($j$). In these equations, $A_{i,j}$ and $N_{i,j}$ represent [NH4] or [NO3], respectively, at a given station ($i$) during a given release ($j$). It is based on [NH4] or [NO3] at the top station ($A_0$ or $N_0$; which we used to normalize the release data for subsequent stations). We assumed an exponential decline ($e$) and normally distributed errors (equations for $\varepsilon_A$ or $\varepsilon_N$).
 
-We use $k$ estimates to calculate uptake velocity $V_f$
+We use $k$ estimates to calculate uptake velocity $V_f$ of either NH4 or NO3
 
-The next level estimates variation in $V_{fj}$ within individual streams.
+The next level estimated variation in $V_{fj}$ within individual streams, which is the update velocity for a given release ($j$).
 
 $$V_{f,j,s}= V_{f,s} + b \times biofilm + c \times shade + d \times biofilm*shade + \varepsilon_v$$
-We are interested in uptake patterns across 4 biofilm periods (shaded; unshaded: early biofilm; unshaded: late biofilm; reshaded). In our experiment, dates 1 & 4 (7/1/20, 8/15/20) were shaded and reshaded, respectively; dates 2 & 3 were early and late biofilm, respectively.
+We were interested in uptake patterns across 4 biofilm periods (shaded; unshaded: early biofilm; unshaded: late biofilm; reshaded). In our experiment, dates 1 & 4 (7/1/20, 8/15/20) were shaded and reshaded, respectively; dates 2 & 3 were early and late biofilm, respectively. We used a binary (0,1) system to code this into our dataset, where shaded and late biofilm colonization treatments received a "1" 
 
 $$ \varepsilon_v \sim N(0,\sigma_v)$$
 Lastly we model the among stream variation in $V_{fs}$ as
@@ -68,11 +69,11 @@ Q <- 0.001*86400  #m3/d --> 1 L is 0.001 m3; multiply by 86400 to get from secon
 w <- 0.5 #stream width (m)
 
 n_stream <- 4
-n_release <- 12
+n_release <- 12 #number of releases per stream
 
 #start at the top, work down
 meanvf <- log(3) #m/d
-sdvf <- 0.1 # stream to stream differences in vf; parameter, not an error.  Note that log std is very different than sd.  It is like fraction error, and scale independent
+sdvf <- 0.1 # stream to stream differences in vf; parameter, not an error.  Note that log std is very different than sd.  It is like fraction erro, and scale independent
 vfstream <- rnorm(n_stream,meanvf,sdvf)
 
 sd_release <- 0.2 ##much smaller for logs.  This says "10% error"
@@ -80,18 +81,16 @@ vf <- rep(vfstream, each=12) + rnorm(n_stream*n_release, 0, sd_release) #now mak
 
 ##now make ammonium uptake
 
-k <- exp(vf)*w/Q
+k <- exp(vf)*w/Q #this is correct. See the difference, you exponentiated w and q too in k<- exp(w/(vf*Q)).  I also screwed the algebra before, so this is better
 
 amm_sd <- 0.05 # wow am I good at measuring NH4
 stations <- rep(c(10,20,30,40,50), n_stream*n_release)
-krep <- rep(k, each=3)
+krep <- rep(k, each=5)
 amm_corr <- exp(-krep*stations) + rnorm (length(stations),0, amm_sd) #simulated [NH4] at each station
+#
 
 ##now make fake dataframe
 
-fakedat <- data.frame( amm_corr=amm_corr, q=Q, stations=stations, stream=rep(1:4, each=48), release=rep(rep(1:12, each=12), 4), group=rep(1:48, each=12))
-
-summary(fakedat)
-print(krep)
+fakedat <- data.frame(amm_corr=amm_corr, q=Q, stations=stations, stream=rep(1:4,each=60), release=rep(rep(1:12, each=5),4), group=rep(1:48, each=5))
 
 ```
