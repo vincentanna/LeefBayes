@@ -9,8 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Personal Access Token for LeefBayes: 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
-
 ```{r Set working directory and load packages, message=FALSE}
 
 rm(list=ls())
